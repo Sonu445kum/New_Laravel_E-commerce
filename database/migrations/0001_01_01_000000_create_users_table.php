@@ -11,29 +11,70 @@ return new class extends Migration
      */
     public function up(): void
     {
+        /**
+         * ===============================
+         * USERS TABLE
+         * ===============================
+         * Stores all registered users (customers, admins, vendors)
+         */
         Schema::create('users', function (Blueprint $table) {
-            $table->id();
-            $table->string('name');
-            $table->string('email')->unique();
-            $table->timestamp('email_verified_at')->nullable();
-            $table->string('password');
-            $table->rememberToken();
-            $table->timestamps();
+            $table->id(); // Primary key
+
+            $table->string('name'); // Full name of the user
+            $table->string('email')->unique(); // Unique email for login
+
+            $table->timestamp('email_verified_at')->nullable(); // Email verification timestamp
+            $table->string('password'); // Hashed password
+
+            $table->string('phone')->nullable(); // Optional phone number for contact
+            $table->enum('role', ['customer', 'admin', 'vendor'])->default('customer'); 
+            // Role-based access system
+
+            $table->boolean('is_blocked')->default(false); 
+            // Used for blocking/unblocking users (instead of deleting)
+
+            $table->rememberToken(); // Required for Laravel "remember me" feature
+            $table->timestamps(); // created_at & updated_at timestamps
+
+            $table->softDeletes(); // Allows safe user deletion (can restore later)
+
+            // Indexes to improve query performance
+            $table->index(['role', 'is_blocked']);
         });
 
+        /**
+         * ===============================
+         * PASSWORD RESET TOKENS TABLE
+         * ===============================
+         * Stores temporary tokens for password reset links
+         */
         Schema::create('password_reset_tokens', function (Blueprint $table) {
-            $table->string('email')->primary();
-            $table->string('token');
-            $table->timestamp('created_at')->nullable();
+            $table->string('email')->primary(); // Email serves as primary key
+            $table->string('token'); // Reset token (hashed)
+            $table->timestamp('created_at')->nullable(); // When token was generated
         });
 
+        /**
+         * ===============================
+         * SESSIONS TABLE
+         * ===============================
+         * Stores session information for logged-in users
+         */
         Schema::create('sessions', function (Blueprint $table) {
-            $table->string('id')->primary();
-            $table->foreignId('user_id')->nullable()->index();
-            $table->string('ip_address', 45)->nullable();
-            $table->text('user_agent')->nullable();
-            $table->longText('payload');
-            $table->integer('last_activity')->index();
+            $table->string('id')->primary(); // Session ID (auto-generated)
+            $table->foreignId('user_id')->nullable()->index(); 
+            // Optional: user linked to this session
+
+            $table->string('ip_address', 45)->nullable(); // IP address (supports IPv6)
+            $table->text('user_agent')->nullable(); // Browser/device info
+
+            $table->longText('payload'); // Encrypted session data
+            $table->integer('last_activity')->index(); // Last activity timestamp
+
+            // 🔗 Optional: Add foreign key for better data integrity
+            $table->foreign('user_id')
+                  ->references('id')->on('users')
+                  ->onDelete('cascade');
         });
     }
 
@@ -42,8 +83,9 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('users');
-        Schema::dropIfExists('password_reset_tokens');
+        // Drop child tables first to prevent foreign key constraint issues
         Schema::dropIfExists('sessions');
+        Schema::dropIfExists('password_reset_tokens');
+        Schema::dropIfExists('users');
     }
 };
