@@ -26,20 +26,25 @@ return new class extends Migration
             $table->timestamp('email_verified_at')->nullable(); // Email verification timestamp
             $table->string('password'); // Hashed password
 
-            $table->string('phone')->nullable(); // Optional phone number for contact
-            $table->enum('role', ['customer', 'admin', 'vendor'])->default('customer'); 
-            // Role-based access system
+            $table->string('phone', 20)->nullable()->index(); // Optional phone number + indexed for lookup
 
-            $table->boolean('is_blocked')->default(false); 
+            // Role-based access system: customer / admin / vendor
+            $table->enum('role', ['customer', 'admin', 'vendor'])->default('customer')->index();
+
             // Used for blocking/unblocking users (instead of deleting)
+            $table->boolean('is_blocked')->default(false)->index();
 
-            $table->rememberToken(); // Required for Laravel "remember me" feature
-            $table->timestamps(); // created_at & updated_at timestamps
+            // Used for "remember me" functionality
+            $table->rememberToken();
 
-            $table->softDeletes(); // Allows safe user deletion (can restore later)
+            // Timestamps (created_at, updated_at)
+            $table->timestamps();
 
-            // Indexes to improve query performance
-            $table->index(['role', 'is_blocked']);
+            // Soft delete (safe user removal)
+            $table->softDeletes();
+
+            // Additional optional indexes for speed
+            $table->index(['email_verified_at']);
         });
 
         /**
@@ -52,6 +57,9 @@ return new class extends Migration
             $table->string('email')->primary(); // Email serves as primary key
             $table->string('token'); // Reset token (hashed)
             $table->timestamp('created_at')->nullable(); // When token was generated
+
+            // Optional index for cleanup queries
+            $table->index('created_at');
         });
 
         /**
@@ -62,19 +70,18 @@ return new class extends Migration
          */
         Schema::create('sessions', function (Blueprint $table) {
             $table->string('id')->primary(); // Session ID (auto-generated)
-            $table->foreignId('user_id')->nullable()->index(); 
-            // Optional: user linked to this session
 
-            $table->string('ip_address', 45)->nullable(); // IP address (supports IPv6)
+            $table->foreignId('user_id')
+                  ->nullable()
+                  ->constrained('users')
+                  ->onDelete('cascade')
+                  ->index(); // User linked to this session
+
+            $table->string('ip_address', 45)->nullable(); // IPv4/IPv6 address
             $table->text('user_agent')->nullable(); // Browser/device info
 
             $table->longText('payload'); // Encrypted session data
             $table->integer('last_activity')->index(); // Last activity timestamp
-
-            // 🔗 Optional: Add foreign key for better data integrity
-            $table->foreign('user_id')
-                  ->references('id')->on('users')
-                  ->onDelete('cascade');
         });
     }
 
@@ -83,7 +90,7 @@ return new class extends Migration
      */
     public function down(): void
     {
-        // Drop child tables first to prevent foreign key constraint issues
+        // Drop child tables first to prevent FK constraint issues
         Schema::dropIfExists('sessions');
         Schema::dropIfExists('password_reset_tokens');
         Schema::dropIfExists('users');

@@ -7,8 +7,14 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Laravel\Sanctum\HasApiTokens; // for API token authentication
+use Laravel\Sanctum\HasApiTokens;
 
+/**
+ * User Model
+ *
+ * Handles user authentication, roles, soft deletes,
+ * email verification, and relationships with orders, reviews, etc.
+ */
 class User extends Authenticatable implements MustVerifyEmail
 {
     use HasApiTokens, HasFactory, Notifiable, SoftDeletes;
@@ -72,7 +78,7 @@ class User extends Authenticatable implements MustVerifyEmail
     }
 
     /**
-     * A user may have multiple notifications.
+     * A user may have multiple notifications (custom relation).
      */
     public function notificationsCustom()
     {
@@ -81,12 +87,10 @@ class User extends Authenticatable implements MustVerifyEmail
 
     /**
      * (Optional) Coupons used or assigned to the user.
-     * Useful if you implement per-user coupon tracking.
      */
     public function coupons()
     {
-        return $this->belongsToMany(Coupon::class, 'user_coupons')
-                    ->withTimestamps();
+        return $this->belongsToMany(Coupon::class, 'user_coupons')->withTimestamps();
     }
 
     /* ============================================================
@@ -142,11 +146,15 @@ class User extends Authenticatable implements MustVerifyEmail
      */
     public function isBlocked(): bool
     {
-        return $this->is_blocked;
+        return (bool) $this->is_blocked;
     }
 
+    /* ============================================================
+     |                        EVENTS / HOOKS
+     |============================================================ */
+
     /**
-     * Soft delete hook — automatically revoke tokens if user deleted.
+     * When user is soft deleted → revoke Sanctum tokens.
      */
     protected static function booted()
     {
@@ -157,4 +165,3 @@ class User extends Authenticatable implements MustVerifyEmail
         });
     }
 }
-?>
