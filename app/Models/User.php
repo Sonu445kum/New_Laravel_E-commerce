@@ -13,7 +13,7 @@ use Laravel\Sanctum\HasApiTokens;
  * User Model
  *
  * Handles user authentication, roles, soft deletes,
- * email verification, and relationships with orders, reviews, etc.
+ * email verification, and relationships with orders, reviews, wishlist, etc.
  */
 class User extends Authenticatable implements MustVerifyEmail
 {
@@ -29,6 +29,8 @@ class User extends Authenticatable implements MustVerifyEmail
         'phone',
         'role',
         'is_blocked',
+        'is_admin',     // for IsAdmin middleware
+        'is_active',    // for user status management
     ];
 
     /**
@@ -45,6 +47,8 @@ class User extends Authenticatable implements MustVerifyEmail
     protected $casts = [
         'email_verified_at' => 'datetime',
         'is_blocked' => 'boolean',
+        'is_admin' => 'boolean',
+        'is_active' => 'boolean',
     ];
 
     /**
@@ -78,7 +82,7 @@ class User extends Authenticatable implements MustVerifyEmail
     }
 
     /**
-     * A user may have multiple notifications (custom relation).
+     * A user can receive many custom notifications.
      */
     public function notificationsCustom()
     {
@@ -86,36 +90,35 @@ class User extends Authenticatable implements MustVerifyEmail
     }
 
     /**
-     * (Optional) Coupons used or assigned to the user.
+     * A user can have many coupons.
      */
     public function coupons()
     {
         return $this->belongsToMany(Coupon::class, 'user_coupons')->withTimestamps();
     }
 
+    /**
+     * 🆕 A user can have many wishlist items.
+     */
+    public function wishlist()
+    {
+        return $this->hasMany(Wishlist::class, 'user_id');
+    }
+
     /* ============================================================
      |                        SCOPES
      |============================================================ */
 
-    /**
-     * Scope for only active (non-blocked) users.
-     */
     public function scopeActive($query)
     {
-        return $query->where('is_blocked', false);
+        return $query->where('is_blocked', false)->where('is_active', true);
     }
 
-    /**
-     * Scope for only admin users.
-     */
     public function scopeAdmins($query)
     {
-        return $query->where('role', 'admin');
+        return $query->where('role', 'admin')->orWhere('is_admin', true);
     }
 
-    /**
-     * Scope for only vendor users.
-     */
     public function scopeVendors($query)
     {
         return $query->where('role', 'vendor');
@@ -125,37 +128,30 @@ class User extends Authenticatable implements MustVerifyEmail
      |                        HELPER METHODS
      |============================================================ */
 
-    /**
-     * Check if user has admin role.
-     */
     public function isAdmin(): bool
     {
-        return $this->role === 'admin';
+        return $this->role === 'admin' || (bool) $this->is_admin;
     }
 
-    /**
-     * Check if user has vendor role.
-     */
     public function isVendor(): bool
     {
         return $this->role === 'vendor';
     }
 
-    /**
-     * Check if user is blocked.
-     */
     public function isBlocked(): bool
     {
         return (bool) $this->is_blocked;
+    }
+
+    public function isActive(): bool
+    {
+        return (bool) $this->is_active;
     }
 
     /* ============================================================
      |                        EVENTS / HOOKS
      |============================================================ */
 
-    /**
-     * When user is soft deleted → revoke Sanctum tokens.
-     */
     protected static function booted()
     {
         static::deleting(function ($user) {
